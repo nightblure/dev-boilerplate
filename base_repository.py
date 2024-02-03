@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 
-from pydantic import BaseModel
-from sqlalchemy import update, insert
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import update
+from sqlalchemy.dialects.mysql import insert
+from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSqlRepository:
@@ -19,7 +22,7 @@ class BaseSqlRepository:
         Example with multiple joins and filters:
 
         joins = [
-            (Class, self.model.klass_id == Class.id, False),
+            (Class, self.model.class_id == Class.id, False),
             (Brand, Brand.id == Class.brand_id, True)
         ]
 
@@ -42,6 +45,7 @@ class BaseSqlRepository:
         self.db_session = db_session
         self.field_name_to_orm_field = self.__build_fields_mapping()
         self.q = db_session.query(self.model)
+        self.ids_set = set()
 
     def __build_fields_mapping(self) -> dict[str, InstrumentedAttribute]:
         """Returns map field_name -> sqlalchemy orm field"""
@@ -57,6 +61,9 @@ class BaseSqlRepository:
 
     def _get_field(self, name: str):
         return self.field_name_to_orm_field[name]
+
+    def reset_query(self):
+        self.q = self.db_session.query(self.model)
 
     def order_by(self, field: str, order: str = 'asc'):
         orm_field = self._get_field(field)
@@ -131,7 +138,7 @@ class BaseSqlRepository:
     def all(self):
         return self.q.all()
 
-    def all_list_dicts(self) -> list[dict[str, Any]]:
+    def get_query_result_as_list_dicts(self) -> list[dict[str, Any]]:
         db_data = self.all()
         all_field_names = list(self.field_name_to_orm_field.keys())
         result = []
@@ -147,36 +154,18 @@ class BaseSqlRepository:
 
         return result
 
-    def where_by_condition(self, field: str, operator: str, value):
-        """
-        :param field: field name
-        :param operator: must be '<', '<=', '>' or '>='
-        """
-        orm_field = self._get_field(field)
-
-        if operator == '>':
-            self.q = self.q.filter(orm_field > value)
-
-        if operator == '>=':
-            self.q = self.q.filter(orm_field >= value)
-
-        if operator == '<':
-            self.q = self.q.filter(orm_field < value)
-
-        if operator == '<=':
-            self.q = self.q.filter(orm_field <= value)
-
-        return self
-
     def where_null(self, field: str):
         orm_field = self._get_field(field)
         self.q = self.q.filter(orm_field.is_(None))
         return self
 
-    def where_not_null(self, field: str):
+    def where_not_null(self, field: str, base_query=None):
         orm_field = self._get_field(field)
-        self.q = self.q.filter(orm_field.isnot(None))
-        return self
+
+        if base_query is None:
+            base_query = self.q
+
+        return base_query.q.filter(orm_field.isnot(None))
 
     @property
     def query(self) -> Query:
@@ -186,16 +175,11 @@ class BaseSqlRepository:
         id_field = self._get_field(id_field_name)
         return self.q.filter(id_field == id).one_or_none()
 
-    def _create(self, data: dict[str, Any] | BaseModel, commit=True):
-        data_dict: dict[str, Any] = data
-
-        if isinstance(data, BaseModel):
-            data_dict = data.dict()
-
-        db_obj = self.model(**data_dict)
-
+    def insert_object_by_mapping(self, data: dict[str, Any], commit=True):
         try:
+            db_obj = self.model(**data)
             self.db_session.add(db_obj)
+
             if commit:
                 self.commit()
 
@@ -204,16 +188,10 @@ class BaseSqlRepository:
             self.db_session.rollback()
             raise e
 
-    def update(self, *, id, id_field_name: str = 'id', data: dict[str, Any] | BaseModel, commit=True):
-        data_dict: dict[str, Any] = data
-
-        if isinstance(data, BaseModel):
-            data_dict = data.dict(exclude_unset=True)
-
+    def update(self, id: Any, data: dict[str, Any], id_field: str = 'id', commit=True):
         try:
-
-            id_field = self._get_field(id_field_name)
-            q = update(self.model).where(id_field == id).values(**data_dict)
+            id_field = self._get_field(id_field)
+            q = update(self.model).where(id_field == id).values(**data)
             self.db_session.execute(q)
 
             if commit:
@@ -223,18 +201,11 @@ class BaseSqlRepository:
             self.db_session.rollback()
             raise e
 
-    def update_by_object(self, *, db_obj, data: dict[str, Any] | BaseModel, commit=True):
-
-        data_dict: dict[str, Any] = data
-
-        if isinstance(data, BaseModel):
-            data_dict = data.dict(exclude_unset=True)
-
+    def update_by_object(self, db_obj, data: dict[str, Any], commit=True):
         try:
-
             for field in self.field_name_to_orm_field:
-                if field in data_dict:
-                    setattr(db_obj, field, data_dict[field])
+                if field in data:
+                    setattr(db_obj, field, data[field])
 
             if commit:
                 self.commit()
@@ -243,7 +214,7 @@ class BaseSqlRepository:
             self.db_session.rollback()
             raise e
 
-    def delete(self, *, id, id_field_name: str = 'id', commit=True, synchronize_session=False):
+    def delete(self, id: Any, id_field_name: str = 'id', commit=True, synchronize_session=False):
         db_obj = self.one_or_none(id=id, id_field_name=id_field_name)
         try:
             db_obj.delete(synchronize_session=synchronize_session)
@@ -259,18 +230,12 @@ class BaseSqlRepository:
     def flush(self, objects=None):
         self.db_session.flush(objects)
 
-    def bulk_insert(self, values: list[dict], commit=True):
-        # https://docs.sqlalchemy.org/en/14/orm/persistence_techniques.html#bulk-operations
-        q = insert(self.model).values(values)
-        self.db_session.execute(q)
-
-        if commit:
-            self.commit()
-
-    def bulk_update(self, values: list[dict], commit=True):
+    def bulk_update_by_mappings(self, mappings: list[dict], commit=True):
         # https://docs.sqlalchemy.org/en/14/core/tutorial.html#inserts-updates-and-deletes
+        if len(mappings) == 0:
+            return
 
-        self.db_session.bulk_update_mappings(self.model, values)
+        self.db_session.bulk_update_mappings(self.model, mappings)
 
         # example with explicit composite update key
         # from sqlalchemy import bindparam
@@ -289,3 +254,58 @@ class BaseSqlRepository:
 
         if commit:
             self.commit()
+
+    def bulk_insert_by_mappings(
+            self,
+            mappings: list[dict[str, Any]],
+            commit: bool = True,
+            returning_fields: list[str] = None
+    ) -> set | None:
+        if len(mappings) == 0:
+            return
+        # https://docs.sqlalchemy.org/en/14/orm/persistence_techniques.html#bulk-operations
+        if returning_fields is None:
+            returning_fields = ['id']
+
+        orm_returning_fields = [self._get_field(field) for field in returning_fields]
+        values = None
+
+        try:
+            q = insert(self.model).values(mappings).returning(*orm_returning_fields)
+            values = self.db_session.execute(q).fetchall()
+        except CompileError as e:
+            # some DBAPI not supported returning operator :c
+            logger.error(str(e))
+            q = insert(self.model).values(mappings)
+            self.db_session.execute(q)
+
+        if not commit:
+            return None
+
+        if values is not None:
+            if len(returning_fields) == 1:
+                values = [v[0] for v in values]
+
+            values = set(values)
+
+        return values
+
+    def bulk_insert_objects_by_mappings(self, data: list[dict[str, Any]], commit=True):
+        objs = [self.model(**d) for d in data]
+        self.db_session.bulk_save_objects(objs)
+
+        if commit:
+            self.db_session.commit()
+
+    def get_all_field_unique_values(self, field: str) -> set:
+        q = self.db_session.query(self._get_field(field))
+        values = self.db_session.scalars(q).all()
+        return set(values)
+
+    def get_all_ids(self, id_field: str = 'id') -> set:
+        ids = self.get_all_field_unique_values(id_field)
+        return ids
+
+    def is_value_exists(self, field: str, value) -> bool:
+        orm_field = self._get_field(field)
+        return self.db_session.query(orm_field).filter(orm_field == value).exists().scalar()
