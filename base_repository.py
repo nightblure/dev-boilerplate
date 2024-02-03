@@ -44,8 +44,8 @@ class BaseSqlRepository:
     def __init__(self, db_session: Session):
         self.db_session = db_session
         self.field_name_to_orm_field = self.__build_fields_mapping()
+        self.all_field_names = list(self.field_name_to_orm_field.keys())
         self.q = db_session.query(self.model)
-        self.ids_set = set()
 
     def __build_fields_mapping(self) -> dict[str, InstrumentedAttribute]:
         """Returns map field_name -> sqlalchemy orm field"""
@@ -138,19 +138,25 @@ class BaseSqlRepository:
     def all(self):
         return self.q.all()
 
+    def orm_object_to_dict(self, orm_obj) -> dict[str, Any]:
+        data = {}
+        db_obj_dict = orm_obj.__dict__
+
+        for field in self.all_field_names:
+            if field not in db_obj_dict:
+                data[field] = None
+            else:
+                data[field] = db_obj_dict[field]
+
+        return data
+
     def get_query_result_as_list_dicts(self) -> list[dict[str, Any]]:
         db_data = self.all()
-        all_field_names = list(self.field_name_to_orm_field.keys())
         result = []
 
-        for db_obj in db_data:
-            row = {}
-            db_obj_dict = db_obj.__dict__
-
-            for field in all_field_names:
-                row[field] = db_obj_dict[field]
-
-            result.append(row)
+        for orm_obj in db_data:
+            orm_obj_data = self.orm_object_to_dict(orm_obj)
+            result.append(orm_obj_data)
 
         return result
 
@@ -175,7 +181,7 @@ class BaseSqlRepository:
         id_field = self._get_field(id_field_name)
         return self.q.filter(id_field == id).one_or_none()
 
-    def insert_object_by_mapping(self, data: dict[str, Any], commit=True):
+    def insert_object_by_mapping(self, data: dict[str, Any], commit=True, flush=False) -> dict[str, Any]:
         try:
             db_obj = self.model(**data)
             self.db_session.add(db_obj)
@@ -183,7 +189,10 @@ class BaseSqlRepository:
             if commit:
                 self.commit()
 
-            return db_obj
+            if flush:
+                self.flush()
+
+            return self.orm_object_to_dict(db_obj)
         except IntegrityError as e:
             self.db_session.rollback()
             raise e
@@ -229,6 +238,9 @@ class BaseSqlRepository:
 
     def flush(self, objects=None):
         self.db_session.flush(objects)
+
+    def refresh(self, orm_obj):
+        self.db_session.refresh(orm_obj)
 
     def bulk_update_by_mappings(self, mappings: list[dict], commit=True):
         # https://docs.sqlalchemy.org/en/14/core/tutorial.html#inserts-updates-and-deletes
