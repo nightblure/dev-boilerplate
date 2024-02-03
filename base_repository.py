@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from sqlalchemy import update, insert
+from sqlalchemy import update, insert, or_, and_
 from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 
@@ -31,7 +31,7 @@ class BaseSqlRepository:
             Class.name.in_(class_names)
         ]
 
-        q = self.select_from_tables(
+        q = self.select_from(
             self.model, Class, Brand, ProductCategory,
             Subbrand, ProductAttributes, ClassAttributes
         ).apply_joins(*joins).apply_filters(*filters)
@@ -111,23 +111,35 @@ class BaseSqlRepository:
 
         return self
 
-    def select_from_tables(self, *tables):
+    def select_from(self, *tables):
         """Using examples in class"""
         self.q = self.db_session.query(*tables)
         return self
 
     def apply_joins(self, *joins):
         """Using examples in class"""
+        q = self.q
+
         for join in joins:
             model, on_condition, _ = join
             outer_join = join[2] if len(join) == 3 else False
-            self.q = self.q.join(model, on_condition, isouter=outer_join)
+            q = q.join(model, on_condition, isouter=outer_join)
 
+        self.q = q
         return self
 
-    def apply_filters(self, *filters):
-        """Using examples in class"""
-        self.q = self.q.filter(*filters)
+    def apply_filters(self, filters: list, *, condition=None):
+        """Condition must be 'and' or 'or' on None"""
+        q = self.q.filter(*filters)
+
+        if condition is not None:
+            if condition == 'and':
+                q = self.q.filter(and_(*filters))
+
+            if condition == 'or':
+                q = self.q.filter(or_(*filters))
+
+        self.q = q
         return self
 
     def limit(self, limit: int):
@@ -135,7 +147,9 @@ class BaseSqlRepository:
         return self
 
     def all(self):
-        return self.q.all()
+        result = self.q.all()
+        self.reset_query()
+        return result
 
     def orm_object_to_dict(self, orm_obj) -> dict[str, Any]:
         data = {}
@@ -164,19 +178,18 @@ class BaseSqlRepository:
         self.q = self.q.filter(orm_field.is_(None))
         return self
 
-    def where_not_null(self, field: str, base_query=None):
+    def where_not_null(self, field: str):
         orm_field = self._get_field(field)
-
-        if base_query is None:
-            base_query = self.q
-
-        return base_query.q.filter(orm_field.isnot(None))
+        self.q = self.q.filter(orm_field.isnot(None))
+        return self
 
     @property
     def query(self) -> Query:
-        return self.q
+        q = self.q
+        self.reset_query()
+        return q
 
-    def one_or_none(self, id, id_field_name: str = 'id'):
+    def one_or_none(self, id: Any, id_field_name: str = 'id'):
         id_field = self._get_field(id_field_name)
         return self.q.filter(id_field == id).one_or_none()
 
