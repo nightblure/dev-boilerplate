@@ -1,8 +1,7 @@
 import logging
 from typing import Any
 
-from sqlalchemy import update
-from sqlalchemy.dialects.mysql import insert
+from sqlalchemy import update, insert
 from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 
