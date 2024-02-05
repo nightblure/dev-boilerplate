@@ -44,7 +44,7 @@ class BaseSqlRepository:
         self.db_session = db_session
         self.field_name_to_orm_field = self.__build_fields_mapping()
         self.all_field_names = list(self.field_name_to_orm_field.keys())
-        self.q = db_session.query(self.model)
+        self.q: Query = db_session.query(self.model)
 
     def __build_fields_mapping(self) -> dict[str, InstrumentedAttribute]:
         """Returns map field_name -> sqlalchemy orm field"""
@@ -62,7 +62,12 @@ class BaseSqlRepository:
         return self.field_name_to_orm_field[name]
 
     def reset_query(self):
+        """Assign self.q to session.query(self.model)"""
         self.q = self.db_session.query(self.model)
+
+    @property
+    def query(self) -> Query:
+        return self.q
 
     def order_by(self, field: str, order: str = 'asc'):
         orm_field = self._get_field(field)
@@ -146,9 +151,13 @@ class BaseSqlRepository:
         self.q = self.q.limit(limit)
         return self
 
-    def all(self):
+    def all(self, reset_query=True):
+        """If reset_query True then self.q = session.query(self.model)"""
         result = self.q.all()
-        self.reset_query()
+
+        if reset_query:
+            self.reset_query()
+
         return result
 
     def orm_object_to_dict(self, orm_obj) -> dict[str, Any]:
@@ -182,12 +191,6 @@ class BaseSqlRepository:
         orm_field = self._get_field(field)
         self.q = self.q.filter(orm_field.isnot(None))
         return self
-
-    @property
-    def query(self) -> Query:
-        q = self.q
-        self.reset_query()
-        return q
 
     def one_or_none(self, id: Any, id_field_name: str = 'id'):
         id_field = self._get_field(id_field_name)
