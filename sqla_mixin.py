@@ -121,13 +121,17 @@ class BaseSqlRepository:
         self.q = self.db_session.query(*tables)
         return self
 
-    def apply_joins(self, *joins):
+    def apply_joins(self, joins: list[tuple], *, outer=False):
         """Using examples in class"""
         q = self.q
 
         for join in joins:
             model, on_condition, _ = join
-            outer_join = join[2] if len(join) == 3 else False
+            outer_join = outer
+
+            if len(join) == 3:
+                outer_join = join[2]
+
             q = q.join(model, on_condition, isouter=outer_join)
 
         self.q = q
