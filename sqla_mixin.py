@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 logger = logging.getLogger(__name__)
 
 
-class BaseSqlRepository:
+class SQLAMixin:
     """
     Fluent interface wrapper above simple SQLAlchemy queries
     Examples:
