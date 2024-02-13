@@ -1,3 +1,6 @@
+import sqlalchemy as sa
+
+
 settings = ProjectSettings()
 
 
@@ -29,6 +32,11 @@ def with_session(db_session_manager=create_db_session_manager()):
         return inner
 
     return wrapper
+
+
+class SomeRepository:
+    def __init__(db_session: sa.orm.Session):
+        self.db_session = db_session
 
 
 @with_session()
