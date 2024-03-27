@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 
-from pixi.typings import SQLADbSession
+from db.typings import SQLADbSession
 
 
 class DbSessionManager:
