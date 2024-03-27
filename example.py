@@ -10,7 +10,6 @@ class SomeRepository:
         return self.db_session.query(...).all()
         
 
-@with_session()
 def create_some_repository(db_session=None):
     return SomeRepository(db_session=db_session)
 
