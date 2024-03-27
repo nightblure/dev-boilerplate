@@ -1,9 +1,10 @@
 import sqlalchemy as sa
 from db.deps import get_db_session_context, get_db_session
+from db.typings import SQLADbSession
 
 
 class SomeRepository:
-    def __init__(self, db_session: sa.orm.Session):
+    def __init__(self, db_session: SQLADbSession):
         self.db_session = db_session
 
     def get_all(self):
