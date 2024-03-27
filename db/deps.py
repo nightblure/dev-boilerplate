@@ -15,7 +15,7 @@ def create_db_session_manager() -> DbSessionManager:
             pool_pre_ping=True,
             echo=settings.is_need_log_sql,
             scoped=False,
-            db_url=settings.database
+            db_url=settings.database_url
         )
 
         DbSessionManager.instance = DbSessionManager(**db_session_manager_kwargs)
