@@ -1,10 +1,12 @@
 from asyncio import iscoroutinefunction
 from typing import ContextManager
 
+from db.settings import DbSettings
 from db.session_manager import DbSessionManager
 from db.typings import SQLADbSession
 
-settings = ...
+
+settings = DbSettings()
 
 
 def create_db_session_manager() -> DbSessionManager:
@@ -15,7 +17,7 @@ def create_db_session_manager() -> DbSessionManager:
             pool_pre_ping=True,
             echo=settings.is_need_log_sql,
             scoped=False,
-            db_url=settings.database_url
+            db_url=settings.db_url
         )
 
         DbSessionManager.instance = DbSessionManager(**db_session_manager_kwargs)
