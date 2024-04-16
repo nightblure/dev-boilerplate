@@ -62,10 +62,9 @@ def inject_db_session():
     return wrapper
 
 
-def get_db(request: Request):
+def get_db(_: Request):
     with get_db_session_context() as db_session:
-        request.state.db = db_session
-        yield request.state.db
+        yield db_session
 
 
 DbSession = Annotated[SQLADbSession, Depends(get_db)]
