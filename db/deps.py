@@ -5,6 +5,8 @@ from db.settings import DbSettings
 from db.session_manager import DbSessionManager
 from db.typings import SQLADbSession
 
+from fastapi import Depends, Request
+
 
 settings = DbSettings()
 
@@ -58,3 +60,10 @@ def inject_db_session():
             return inner
 
     return wrapper
+
+
+def get_db(request: Request):
+    return request.state.db
+
+
+DbSession = Annotated[SQLADbSession, Depends(get_db)]
