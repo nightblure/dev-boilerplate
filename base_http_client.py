@@ -96,6 +96,7 @@ class BaseHttpClient:
             headers=None,
             timeout: int = TIMEOUT,
             retries: int = 1,
+            retries_timeout: int = RETRIES_TIMEOUT,
             follow_redirects=False
     ) -> Result:
         url = self.make_url(endpoint)
@@ -104,7 +105,7 @@ class BaseHttpClient:
             headers = {}
 
         headers = {**self.default_headers, **headers}
-        current_retries_timeout = self.RETRIES_TIMEOUT
+        current_retries_timeout = retries_timeout
         current_backoff = 1
 
         for i in range(retries):
