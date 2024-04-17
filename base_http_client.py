@@ -123,7 +123,10 @@ class BaseHttpClient:
                     return result
 
             # We SHOULDN'T to retry client errors (4XX)
-            except (ExternalServiceError, ExternalServiceTimeoutError):
+            except (ExternalServiceError, ExternalServiceTimeoutError) as e:
+                if retries == 1:
+                    raise e
+
                 current_retries_timeout = round(current_retries_timeout * current_backoff, 2)
                 logger.warning(
                     f'Make retry №{i + 1} to host {self.host}, '
@@ -190,3 +193,4 @@ class BaseHttpClient:
     async def put(self, **kw):
         """See available arguments in request method"""
         return await self.request('put', **kw)
+
