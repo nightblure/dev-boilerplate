@@ -2,7 +2,7 @@ import logging
 from typing import Any
 from typing_extensions import Literal
 
-from sqlalchemy import update, insert, or_, and_, func
+from sqlalchemy import update, insert, or_, and_, func, delete
 from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 
@@ -20,7 +20,7 @@ class SQLAMixin:
             .order_by('id', 'desc')
             .all()
         )
-        
+
         self.reset_query()
 
         objs = (
@@ -28,7 +28,7 @@ class SQLAMixin:
             .where_in(id=[1, 2])
             .limit(5)
             .all()
-            
+
         objs = repo.where(id=230423).all()
 
     **Example with multiple joins and filters**:
@@ -85,12 +85,12 @@ class SQLAMixin:
                 .apply_filters(...)
                 .apply_joins(...)
             )
-            
+
             items = query.all()
-            
+
             # before exec next query you should reset repository instance state (reset query)!
             self.reset_query()
-            
+
             new_query = ...
         """
         self.q = self.db_session.query(self.model)
@@ -151,7 +151,7 @@ class SQLAMixin:
                 self.model.name.lower_in_(names),
                 E2.name.in_(names)
             ]
-    
+
             q = self.apply_filters(*filters).query
             objs = q.all()
         """
@@ -193,7 +193,7 @@ class SQLAMixin:
                 (E1, self.model.e_id == E3.id, False),
                 (E2, E2.id == E.e2_id, True)
             ]
-    
+
             q = (
                 self.select_from(...)
                 .apply_joins(*joins, outer=True)
@@ -328,16 +328,21 @@ class SQLAMixin:
             self.db_session.rollback()
             raise e
 
-    def delete(self, id: Any, *, id_field_name: str = 'id', commit=True, synchronize_session=False):
-        # todo сделать в один запрос
-        db_obj = self.one_or_none(id=id, id_field_name=id_field_name)
-        try:
-            db_obj.delete(synchronize_session=synchronize_session)
-            if commit:
-                self.commit()
-        except IntegrityError as e:
-            self.db_session.rollback()
-            raise e
+    def delete(self, id: Any, *, id_field_name: str = 'id', commit=True):
+        id_field = self._get_field(id_field_name)
+        stmt = delete(self.model).where(id_field == id)
+        self.db_session.execute(stmt)
+
+        if commit:
+            self.db_session.commit()
+
+    def bulk_delete(self, ids: list, *, id_field_name: str = 'id', commit=True):
+        id_field = self._get_field(id_field_name)
+        stmt = delete(self.model).where(id_field.in_(ids))
+        self.db_session.execute(stmt)
+
+        if commit:
+            self.db_session.commit()
 
     def commit(self):
         self.db_session.commit()
