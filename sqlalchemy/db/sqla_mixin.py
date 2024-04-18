@@ -340,3 +340,33 @@ class SQLAMixin:
     def is_value_exists(self, field: str, value) -> bool:
         orm_field = self._get_field(field)
         return self.db_session.query(orm_field).filter(orm_field == value).exists().scalar()
+
+    def get_orm_sort_fields(self, sort_by: list[str]) -> list:
+        """
+        Examples:
+        ::
+            sort_fields = self.get_orm_sort_fields(['id', '-created_at'])
+            >> [OrmEntity.id, OrmEntity.created_at.desc()]
+            items = query.order_by(*sort_fields).all()
+
+        Returns:
+            list: list of orm fields
+        """
+        fields = []
+
+        for sort_field in sort_by:
+            sort_mode = 'asc'
+            field_name = sort_field
+
+            if field_name.startswith('-'):
+                sort_mode = 'desc'
+                field_name = field_name[1:]
+
+            orm_field = self._get_field(field_name)
+
+            if sort_mode == 'asc':
+                fields.append(orm_field)
+            else:
+                fields.append(orm_field.desc())
+
+        return fields
