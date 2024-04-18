@@ -1,7 +1,8 @@
 import logging
 from typing import Any
+from typing_extensions import Literal
 
-from sqlalchemy import update, insert, or_, and_
+from sqlalchemy import update, insert, or_, and_, func
 from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 
@@ -12,29 +13,43 @@ class SQLAMixin:
     """
     Fluent interface wrapper above simple SQLAlchemy queries
     Examples:
-        objs = repo.select('id').where(name='test').order_by('id', 'desc').all()
+    ::
+        objs = (
+            repo.select('id')
+            .where(name='test')
+            .order_by('id', 'desc')
+            .all()
+        )
+        
+        self.reset_query()
 
-        objs = repo.select(id='id_label').where_in(id=[1, 2]).limit(5).all()
-
+        objs = (
+            repo.select(id='id_label')
+            .where_in(id=[1, 2])
+            .limit(5)
+            .all()
+            
         objs = repo.where(id=230423).all()
 
-        Example with multiple joins and filters:
+    **Example with multiple joins and filters**:
+    ::
 
         joins = [
-            (Class, self.model.class_id == Class.id, False),
-            (Brand, Brand.id == Class.brand_id, True)
+            (E1, self.model.id == E3.e1_id, False),
+            (E2, E2.e_id == E.id, True)
         ]
 
         filters = [
-            Brand.name.in_(brand_names),
-            self.model.size_name.in_(size_names),
-            Class.name.in_(class_names)
+            E.name.in_(names),
+            self.model.name.lower_in_(names),
+            E2.name.in_(names)
         ]
 
-        q = self.select_from(
-            self.model, Class, Brand, ProductCategory,
-            Subbrand, ProductAttributes, ClassAttributes
-        ).apply_joins(*joins).apply_filters(*filters)
+        q = (
+            self.select_from(*entities)
+            .apply_joins(*joins)
+            .apply_filters(*filters)
+        ).query
 
         objs = q.all()
     """
@@ -62,44 +77,99 @@ class SQLAMixin:
         return self.field_name_to_orm_field[name]
 
     def reset_query(self):
-        """Assign self.q to session.query(self.model)"""
+        """
+        Example:
+        ::
+            query = (
+                self.select_from(...)
+                .apply_filters(...)
+                .apply_joins(...)
+            )
+            
+            items = query.all()
+            
+            # before exec next query you should reset repository instance state (reset query)!
+            self.reset_query()
+            
+            new_query = ...
+        """
         self.q = self.db_session.query(self.model)
 
     @property
     def query(self) -> Query:
         return self.q
 
-    def order_by(self, field: str, order: str = 'asc'):
-        orm_field = self._get_field(field)
-        self.q = self.q.order_by(orm_field)
-
-        if order == 'desc':
-            self.q = self.q.order_by(orm_field.desc())
-
-        return self
-
     def where(self, **filter_args):
+        """
+        Example:
+        ::
+            q = q.where_in(name='Name 1', some_attr=-20).query
+            q.all()
+        """
         self.q = self.q.filter_by(**filter_args)
         return self
 
     def where_in(self, **filter_args):
+        """
+        Example:
+        ::
+            q = q.where_in(
+                name=['Name 1', 'Name X'], some_attr=[1, 2, -100]
+            ).query
+            q.all()
+        """
         filters = [
-            self._get_field(field).in_(value)
-            for field, value in filter_args.items()
+            self._get_field(field).in_(value) for field, value in filter_args.items()
         ]
         self.q = self.q.filter(*filters)
         return self
 
     def where_like(self, **filter_args):
         filters = [
-            self._get_field(field).like(value)
-            for field, value in filter_args.items()
+            self._get_field(field).like(value) for field, value in filter_args.items()
         ]
         self.q = self.q.filter(*filters)
         return self
 
+    def where_lower(self, field: str, value: str):
+        """
+        Example:
+        ::
+            q = self.where_lower('name', 'NAME').query
+            objs = q.all()
+        """
+        orm_field = self._get_field(field)
+        self.q = self.q.filter(func.lower(orm_field) == value.lower())
+        return self
+
+    def lower_in(self, field: str, values: list[str]):
+        """
+        Example:
+        ::
+            filters = [
+                E.name.in_(names),
+                self.model.name.lower_in_(names),
+                E2.name.in_(names)
+            ]
+    
+            q = self.apply_filters(*filters).query
+            objs = q.all()
+        """
+        lower_values = [v.lower() for v in values]
+        orm_field = self._get_field(field)
+        self.q = self.q.filter(func.lower(orm_field).in_(lower_values))
+        return self
+
     def select(self, *fields, **field_to_label):
-        """Using examples in class comment"""
+        """
+        Example:
+        ::
+            field_name_to_label = {'created_at': 'date'}
+            items = self.select(
+                'id', 'name', **field_name_to_label
+            ).all()
+            >> [Entity(id=..., name=..., date=...), ...]
+        """
         orm_fields = []
 
         if fields:
@@ -107,8 +177,7 @@ class SQLAMixin:
 
         if field_to_label:
             orm_fields = [
-                self._get_field(field).label(label)
-                for field, label in field_to_label.items()
+                self._get_field(field).label(label) for field, label in field_to_label.items()
             ]
 
         if orm_fields:
@@ -116,13 +185,22 @@ class SQLAMixin:
 
         return self
 
-    def select_from(self, *tables):
-        """Using examples in class"""
-        self.q = self.db_session.query(*tables)
-        return self
-
     def apply_joins(self, joins: list[tuple], *, outer=False):
-        """Using examples in class"""
+        """
+        Example:
+        ::
+            joins = [
+                (E1, self.model.e_id == E3.id, False),
+                (E2, E2.id == E.e2_id, True)
+            ]
+    
+            q = (
+                self.select_from(...)
+                .apply_joins(*joins, outer=True)
+                .query
+            )
+            objs = q.all()
+        """
         q = self.q
 
         for join in joins:
@@ -137,25 +215,32 @@ class SQLAMixin:
         self.q = q
         return self
 
-    def apply_filters(self, filters: list, *, condition=None):
-        """Condition must be 'and' or 'or' on None"""
-        q = self.q.filter(*filters)
+    def apply_filters(self, filters: list, *, condition: Literal['and', 'or'] = 'and'):
+        """
+        Example:
+        ::
+            filters = [
+                E.name.in_(names),
+                self.model.name.in_(names),
+                E2.name.in_(names)
+            ]
 
-        if condition is not None:
-            if condition == 'and':
-                q = self.q.filter(and_(*filters))
+            q = self.apply_filters(*filters, condition='or').query
+            objs = q.all()
+        """
+        if condition == 'and':
+            self.q = self.q.filter(and_(*filters))
 
-            if condition == 'or':
-                q = self.q.filter(or_(*filters))
+        if condition == 'or':
+            self.q = self.q.filter(or_(*filters))
 
-        self.q = q
         return self
 
     def limit(self, limit: int):
         self.q = self.q.limit(limit)
         return self
 
-    def all(self, reset_query=True):
+    def all(self, *, reset_query=True):
         """If reset_query True then self.q = session.query(self.model)"""
         result = self.q.all()
 
@@ -176,14 +261,13 @@ class SQLAMixin:
 
         return data
 
-    def get_query_result_as_list_dicts(self) -> list[dict[str, Any]]:
-        db_data = self.all()
-        result = []
+    def get_query_result_as_list_dicts(self, q: Query | None = None) -> list[dict[str, Any]]:
+        if q is None:
+            db_data = self.all()
+        else:
+            db_data = q.all()
 
-        for orm_obj in db_data:
-            orm_obj_data = self.orm_object_to_dict(orm_obj)
-            result.append(orm_obj_data)
-
+        result = [self.orm_object_to_dict(orm_obj) for orm_obj in db_data]
         return result
 
     def where_null(self, field: str):
@@ -196,11 +280,13 @@ class SQLAMixin:
         self.q = self.q.filter(orm_field.isnot(None))
         return self
 
-    def one_or_none(self, id: Any, id_field_name: str = 'id'):
+    def one_or_none(self, id: Any, *, id_field_name: str = 'id'):
         id_field = self._get_field(id_field_name)
         return self.q.filter(id_field == id).one_or_none()
 
-    def insert_object_by_mapping(self, data: dict[str, Any], commit=True, flush=False) -> dict[str, Any]:
+    def insert_object_by_mapping(
+            self, data: dict[str, Any], *, commit=True, flush=False
+    ) -> dict[str, Any]:
         try:
             db_obj = self.model(**data)
             self.db_session.add(db_obj)
@@ -216,7 +302,7 @@ class SQLAMixin:
             self.db_session.rollback()
             raise e
 
-    def update(self, id: Any, data: dict[str, Any], id_field: str = 'id', commit=True):
+    def update(self, id: Any, data: dict[str, Any], *, id_field: str = 'id', commit=True):
         try:
             id_field = self._get_field(id_field)
             q = update(self.model).where(id_field == id).values(**data)
@@ -229,7 +315,7 @@ class SQLAMixin:
             self.db_session.rollback()
             raise e
 
-    def update_by_object(self, db_obj, data: dict[str, Any], commit=True):
+    def update_by_object(self, db_obj, data: dict[str, Any], *, commit=True):
         try:
             for field in self.field_name_to_orm_field:
                 if field in data:
@@ -242,7 +328,8 @@ class SQLAMixin:
             self.db_session.rollback()
             raise e
 
-    def delete(self, id: Any, id_field_name: str = 'id', commit=True, synchronize_session=False):
+    def delete(self, id: Any, *, id_field_name: str = 'id', commit=True, synchronize_session=False):
+        # todo сделать в один запрос
         db_obj = self.one_or_none(id=id, id_field_name=id_field_name)
         try:
             db_obj.delete(synchronize_session=synchronize_session)
@@ -289,6 +376,7 @@ class SQLAMixin:
     def bulk_insert_by_mappings(
             self,
             mappings: list[dict[str, Any]],
+            *,
             commit: bool = True,
             returning_fields: list[str] = None
     ) -> set | None:
@@ -324,6 +412,7 @@ class SQLAMixin:
     def bulk_insert_objects_by_mappings(self, data: list[dict[str, Any]], commit=True):
         objs = [self.model(**d) for d in data]
         self.db_session.bulk_save_objects(objs)
+        # self.db_session.add_all(objs)
 
         if commit:
             self.db_session.commit()
@@ -341,7 +430,7 @@ class SQLAMixin:
         orm_field = self._get_field(field)
         return self.db_session.query(orm_field).filter(orm_field == value).exists().scalar()
 
-    def get_orm_sort_fields(self, sort_by: list[str]) -> list:
+    def get_orm_order_fields(self, sort_by: list[str]) -> list:
         """
         Examples:
         ::
