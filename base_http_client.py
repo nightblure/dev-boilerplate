@@ -5,7 +5,7 @@ import httpx
 from loguru import logger
 from requests import Response
 
-from some_project.exceptions import ExternalServiceError, ExternalServiceTimeoutError, PixiError
+# from some_project.exceptions import ExternalServiceError, ExternalServiceTimeoutError, SomeServiceError
 from decorators import log_if_errors
 
 
@@ -172,7 +172,7 @@ class BaseHttpClient:
                     )
                     logger.error(msg)
                     # Client error here is same as internal error
-                    raise PixiError(msg)
+                    raise SomeServiceError(msg)
 
                 if response.is_server_error:
                     logger.error(f'Internal server error on "{self.host}: {str(response.content)}"')
@@ -182,6 +182,10 @@ class BaseHttpClient:
             msg = f'Timeout error while connecting to "{self.host}"'
             logger.exception(msg)
             raise ExternalServiceTimeoutError(self.host)
+        
+        except Exception as e:
+            logger.exception(e)
+            raise SomeServiceError(str(e))
 
     async def get(self, **kw):
         """See available arguments in request method"""
