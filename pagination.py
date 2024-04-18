@@ -1,3 +1,4 @@
+from pydantic.version import VERSION
 from pydantic import BaseModel
 from sqlalchemy.orm import Query
 
@@ -31,7 +32,11 @@ def make_pagination(
         offset = (page_size * page) - page_size
 
         db_items = q.limit(page_size).offset(offset).all()
-        items = [item_schema.from_orm(item) for item in db_items]
+
+        if VERSION.startswith('1.'):
+            items = [item_schema.from_orm(item) for item in db_items]
+        else:
+            items = [item_schema.model_validate(item) for item in db_items]
 
     return PaginatedItems(
         total_count=total_count,
