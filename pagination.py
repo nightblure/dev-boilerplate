@@ -1,3 +1,5 @@
+import math
+
 from pydantic.version import VERSION
 from pydantic import BaseModel
 from sqlalchemy.orm import Query
@@ -23,12 +25,7 @@ def make_pagination(
     pages_count = 0
 
     if page_size > 0:
-        # pages_count = total_count // page_size
-        #
-        # if total_count % page_size != 0:
-        #     pages_count += 1
-
-        pages_count = ((total_count - 1) // page_size) + 1
+        pages_count = math.ceil(total_count / page_size)
         offset = (page_size * page) - page_size
 
         db_items = q.limit(page_size).offset(offset).all()
