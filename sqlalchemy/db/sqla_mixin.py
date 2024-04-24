@@ -58,6 +58,7 @@ class SQLAMixin:
     def __init__(self, db_session: Session):
         self.db_session = db_session
         self.field_name_to_orm_field = self.__build_fields_mapping()
+        self.orm_fields = self.model.__table__.columns
         self.all_field_names = list(self.field_name_to_orm_field.keys())
         self.q: Query = db_session.query(self.model)
 
