@@ -285,9 +285,7 @@ class SQLAMixin:
         id_field = self._get_field(id_field_name)
         return self.q.filter(id_field == id).one_or_none()
 
-    def insert_object_by_mapping(
-            self, data: dict[str, Any], *, commit=True, flush=False
-    ) -> dict[str, Any]:
+    def insert_object_by_mapping(self, data: dict[str, Any], *, commit=True, flush=False) -> dict[str, Any]:
         try:
             db_obj = self.model(**data)
             self.db_session.add(db_obj)
@@ -354,7 +352,7 @@ class SQLAMixin:
     def refresh(self, orm_obj):
         self.db_session.refresh(orm_obj)
 
-    def bulk_update_by_mappings(self, mappings: list[dict], commit=True):
+    def bulk_update_by_mappings(self, mappings: list[dict], *, commit=True):
         # https://docs.sqlalchemy.org/en/14/core/tutorial.html#inserts-updates-and-deletes
         if len(mappings) == 0:
             return
@@ -381,10 +379,7 @@ class SQLAMixin:
 
     def bulk_insert_by_mappings(
             self,
-            mappings: list[dict[str, Any]],
-            *,
-            commit: bool = True,
-            returning_fields: list[str] = None
+            mappings: list[dict[str, Any]], *, commit: bool = True, returning_fields: list[str] = None
     ) -> set | None:
         if len(mappings) == 0:
             return
