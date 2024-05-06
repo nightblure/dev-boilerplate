@@ -104,7 +104,7 @@ class BaseHttpClient:
         if headers is None:
             headers = {}
 
-        headers = {**self.default_headers, **headers}
+        headers.update(self.default_headers)
         current_retries_timeout = retries_timeout
         current_backoff = 1
 
