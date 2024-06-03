@@ -50,7 +50,7 @@ def sort_objects(sequence: list, *, fields: list[str], raise_if_field_not_found:
 
     Example:
     ::
-        collections = sort_collection(
+        collections = sort_objects(
             collection,
             fields=['name', '-created_at'],
             raise_if_field_not_found=True
