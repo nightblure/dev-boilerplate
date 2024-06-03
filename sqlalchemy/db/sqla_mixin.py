@@ -3,10 +3,21 @@ from typing import Any
 from typing_extensions import Literal
 
 from sqlalchemy import update, insert, or_, and_, func, delete
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError, CompileError
 from sqlalchemy.orm import Session, InstrumentedAttribute, Query
 
 logger = logging.getLogger(__name__)
+
+
+def get_full_compiled_query(q, dialect=None):
+    """
+    Returns full compiled query with parameters
+    """
+    if dialect is None:        
+        dialect = postgresql.dialect()
+
+    return q.statement.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
 
 
 class SQLAMixin:
@@ -460,3 +471,6 @@ class SQLAMixin:
                 fields.append(orm_field.desc())
 
         return fields
+    
+    def get_full_compiled_query(self, q, dialect=None):
+        return get_full_compiled_query(q, dialect)
