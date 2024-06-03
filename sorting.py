@@ -1,4 +1,29 @@
-def sort_collection_by_conditions(sequence, *conditions):
+import operator
+from functools import reduce
+
+
+def _split_sequence(sequence: list, *, fields: list[str]):
+    sequence_without_none_field_values, sequence_with_none_field_values = [], []
+
+    for obj in sequence:
+        is_none_found = False
+
+        for field_name in fields:
+            field_value = getattr(obj, field_name)
+
+            if field_value is None:
+                is_none_found = True
+                break
+
+        if is_none_found:
+            sequence_with_none_field_values.append(obj)
+        else:
+            sequence_without_none_field_values.append(obj)
+
+    return sequence_without_none_field_values, sequence_with_none_field_values
+
+
+def sort_collection_by_conditions(sequence: list, *conditions):
     """
     Sort a sequence by multiple criteria.
 
@@ -19,9 +44,9 @@ def sort_collection_by_conditions(sequence, *conditions):
     )
 
 
-def sort_collection(sequence, *, fields: list[str], raise_if_field_not_found=False):
+def sort_objects(sequence: list, *, fields: list[str], raise_if_field_not_found: bool = False):
     """
-    Support field names and order marker
+    Sort a collection of objects. Support field names and order marker
 
     Example:
     ::
@@ -35,6 +60,7 @@ def sort_collection(sequence, *, fields: list[str], raise_if_field_not_found=Fal
         return sequence
 
     sort_conditions = []
+    all_fields = []
 
     for field_name in fields:
         reverse = field_name.startswith('-')
@@ -47,11 +73,20 @@ def sort_collection(sequence, *, fields: list[str], raise_if_field_not_found=Fal
         if is_field_found:
             attribute = operator.attrgetter(field_name)
             sort_conditions.append((attribute, reverse))
+            all_fields.append(field_name)
         elif raise_if_field_not_found:
             sequence_elements_type = type(sequence[0])
             raise Exception(
                 f'Field {field_name!r} not found for collection with elements of type {sequence_elements_type!r}'
             )
 
-    return sort_collection_by_conditions(sequence, *sort_conditions)
-  
+    sequence_without_none_field_values, sequence_with_none_field_values = (
+        _split_sequence(sequence, fields=all_fields)
+    )
+
+    sorted_collection = sort_collection_by_conditions(
+        sequence_without_none_field_values, *sort_conditions
+    )
+
+    sorted_collection.extend(sequence_with_none_field_values)
+    return sorted_collection
