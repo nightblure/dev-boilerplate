@@ -1,42 +1,36 @@
-import sqlalchemy as sa
+from db.some_dao import SomeDAO
 
-from db.deps import get_db_session_context, get_db_session, DbSession
-from db.typings import SQLADbSession
-from db.sqla_mixin import SQLAMixin
+from sqlalchemy.orm import sessionmaker
 
 
-class SomeRepository(SQLAMixin):
-    def __init__(self, db_session: SQLADbSession):
-        self.db_session = db_session
+def create_uow():
+    db_url = 'sqlite:///sqlite.db'
+    
+    engine = create_engine(
+        db_url,
+        echo=True
+    )
+    maker_args = dict(
+        autocommit=False,
+        autoflush=False,
+        bind=engine
+    )
+    
+    session_factory = sessionmaker(**maker_args)
+    uow = UnitOfWork.create(
+        session_factory=session_factory
+    )
+    return uow
 
-    def get_all(self):
-        return self.all()
+def main(uow=None):
+    if uow is None:
+        uow = create_uow()
         
-
-def create_some_repository(db_session=None):
-    return SomeRepository(db_session=db_session)
-
-
-def example1():
-    # Session with context manager with auto-closing session and catching errors
-    with get_db_session_context() as db_session:
-        repo = create_some_repository(db_session)
-        repo.get_all()
-
-    # Or get session directly (not recommended)
-    db_session = get_db_session()
-    repo = create_some_repository(db_session)
-    repo.get_all()
-    db_session.close()
-
-
-def example2(db_session: DbSession):
-    # Using example with FastAPI depends that call context manager with auto-closing session and catching errors
-    repo = create_some_repository(db_session)
-    repo.get_all()
-    db_session.close()
+    with uow:
+        objects = uow.some_dao.get_all()
+    
+    print(objects)
 
 
 if __name__ == '__main__':
-    example1()
-    example2()
+    main()
