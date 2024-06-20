@@ -1,4 +1,5 @@
 from db.some_dao import SomeDAO
+from db.uow import UnitOfWork
 
 from sqlalchemy.orm import sessionmaker
 
