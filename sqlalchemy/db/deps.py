@@ -7,6 +7,9 @@ from db.typings import SQLADbSession
 
 from fastapi import Depends, Request
 
+"""
+IT'S NO RECOMMEND TO USE! USE DEPENDENCY INJECTOR AND INJECT UNIT OF WORK TO ENDPOINT HANDLERS INSTEAD!
+"""
 
 settings = DbSettings()
 
