@@ -11,5 +11,5 @@ class DbSettings(BaseSettings):
     )
 
     db_url: str = 'sqlite:///db.db'
-    is_need_log_sql: bool = True
+    sqla_echo: bool = True
     
