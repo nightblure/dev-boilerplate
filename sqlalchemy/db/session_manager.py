@@ -1,9 +1,7 @@
 from contextlib import contextmanager
 from typing import Iterator
 
-from loguru import logger
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, scoped_session, Session
 
 
@@ -35,35 +33,23 @@ class DbSessionManager:
         self.max_overflow = max_overflow
         self.pool_pre_ping = pool_pre_ping
 
-    @property
-    def engine(self):
-        if self._engine is None:
-            self._engine = create_engine(
-                self.db_url,
-                echo=self.echo,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_pre_ping=self.pool_pre_ping
-            )
-        return self._engine
-
-    def _get_or_create_sessionmaker(self, engine: Engine):
+        self.engine = create_engine(
+            self.db_url,
+            echo=self.echo,
+            pool_size=self.pool_size,
+            max_overflow=self.max_overflow,
+            pool_pre_ping=self.pool_pre_ping
+        )
         maker_args = dict(
             autocommit=False,
             autoflush=False,
-            bind=engine
+            bind=self.engine
         )
+
+        self.session_factory: sessionmaker | Session = sessionmaker(**maker_args)
+
         if self.scoped:
-            return scoped_session(sessionmaker(**maker_args))
-        else:
-            return sessionmaker(**maker_args)
-
-    @property
-    def session_factory(self):
-        if self._session_maker is None:
-            self._session_maker = self._get_or_create_sessionmaker(self.engine)
-
-        return self._session_maker
+            self.session_factory = scoped_session(self.session_factory)
 
     def get_db_session(self) -> Session:
         db_session = self.session_factory()
