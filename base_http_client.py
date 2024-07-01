@@ -54,14 +54,14 @@ class BaseHttpClient:
     TIMEOUT = 5
 
     def __init__(
-            self,
-            *,
-            host: str,
-            api_version: str = '',
-            app_name: str,
-            user: str | None = None,
-            password: str | None = None,
-            auth_endpoint: str | None = None
+        self,
+        *,
+        host: str,
+        api_version: str = '',
+        app_name: str,
+        user: str | None = None,
+        password: str | None = None,
+        auth_endpoint: str | None = None,
     ):
         self.host = host.rstrip('/')
         self.api_version = api_version.lstrip('/')
@@ -74,7 +74,7 @@ class BaseHttpClient:
         self.default_headers = {
             'User-Agent': app_name,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
         }
         self.token = None
 
@@ -87,24 +87,24 @@ class BaseHttpClient:
 
     @log_if_errors()
     async def request(
-            self,
-            method: str,
-            *,
-            endpoint: str,
-            query_params: dict[str, Any] | None = None,
-            body: dict[str, Any] = None,
-            headers=None,
-            timeout: int = TIMEOUT,
-            retries: int = 1,
-            retries_timeout: int = RETRIES_TIMEOUT,
-            follow_redirects=False
+        self,
+        method: str,
+        *,
+        endpoint: str,
+        query_params: dict[str, Any] | None = None,
+        body: dict[str, Any] | None = None,
+        headers=None,
+        timeout: int = TIMEOUT,
+        retries: int = 1,
+        retries_timeout: int = RETRIES_TIMEOUT,
+        follow_redirects=False,
     ) -> Result:
         url = self.make_url(endpoint)
 
         if headers is None:
             headers = {}
 
-        headers.update(self.default_headers)
+        headers = {**self.default_headers, **headers}
         current_retries_timeout = retries_timeout
         current_backoff = 1
 
@@ -117,21 +117,24 @@ class BaseHttpClient:
                     body=body,
                     headers=headers,
                     timeout=timeout,
-                    follow_redirects=follow_redirects
+                    follow_redirects=follow_redirects,
                 )
 
                 if result.ok:
                     return result
 
             # We SHOULDN'T to retry client errors (4XX)
-            except (ExternalServiceError, ExternalServiceTimeoutError) as e:
+            except (ExternalServiceError, ExternalServiceTimeoutError):
                 if retries == 1:
-                    raise e
+                    raise
 
-                current_retries_timeout = round(current_retries_timeout * current_backoff, 2)
+                current_retries_timeout = round(
+                    current_retries_timeout * current_backoff,
+                    2,
+                )
                 logger.warning(
                     f'Make retry №{i + 1} to host {self.host}, '
-                    f'sleep for {current_retries_timeout} seconds...'
+                    f'sleep for {current_retries_timeout} seconds...',
                 )
                 await asyncio.sleep(current_retries_timeout)
                 current_backoff *= self.RETRIES_BACKOFF_FACTOR
@@ -140,15 +143,15 @@ class BaseHttpClient:
         raise ExternalServiceError(self.host)
 
     async def _send_request(
-            self,
-            method: str,
-            *,
-            url: str,
-            query_params: dict[str, Any] | None = None,
-            body: dict[str, Any] = None,
-            headers=None,
-            timeout: int,
-            follow_redirects=False
+        self,
+        method: str,
+        *,
+        url: str,
+        query_params: dict[str, Any] | None = None,
+        body: dict[str, Any] | None = None,
+        headers=None,
+        timeout: int,
+        follow_redirects=False,
     ):
         try:
             async with httpx.AsyncClient() as client:
@@ -159,7 +162,7 @@ class BaseHttpClient:
                     headers=headers,
                     json=body,
                     timeout=timeout,
-                    follow_redirects=follow_redirects
+                    follow_redirects=follow_redirects,
                 )
 
                 if response.is_success:
@@ -172,20 +175,22 @@ class BaseHttpClient:
                     )
                     logger.error(msg)
                     # Client error here is same as internal error
-                    raise SomeServiceError(msg)
+                    raise PixiError(msg)
 
                 if response.is_server_error:
-                    logger.error(f'Internal server error on "{self.host}: {str(response.content)}"')
+                    logger.error(
+                        f'Internal server error on "{self.host}: {response.content!s}"',
+                    )
                     raise ExternalServiceError(self.host)
 
         except httpx.TimeoutException:
             msg = f'Timeout error while connecting to "{self.host}"'
             logger.exception(msg)
-            raise ExternalServiceTimeoutError(self.host)
-        
+            raise ExternalServiceTimeoutError(self.host) from httpx.TimeoutException
+
         except Exception as e:
             logger.exception(e)
-            raise SomeServiceError(str(e))
+            raise PixiError(str(e)) from None
 
     async def get(self, **kw):
         """See available arguments in request method"""
@@ -198,4 +203,5 @@ class BaseHttpClient:
     async def put(self, **kw):
         """See available arguments in request method"""
         return await self.request('put', **kw)
+
 
