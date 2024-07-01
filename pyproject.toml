@@ -1,0 +1,60 @@
+# https://docs.astral.sh/ruff/configuration/
+# https://docs.astral.sh/ruff/settings/
+
+[tool.ruff]
+#fix = true
+target-version = "py31111"
+extend-exclude = []
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "single"
+#quote-style = "double"
+
+[tool.ruff.lint]
+exclude = [
+]
+select = [
+    # RULES: https://docs.astral.sh/ruff/rules/
+    "A",     # flake8-builtins
+    "B",     # flake8-bugbear
+    "C",     # flake8-comprehensions
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort
+    "S",     # flake8-bandit
+    "W",     # pycodestyle warnings
+    "T20",   # flake8-print
+    "C4",    # flake8-comprehensions
+    "EM",    # flake8-errmsg
+    "UP",    # pyupgrade
+    "PT",    # flake8-pytest-style
+    "ARG",   # flake8-unused-arguments
+    "COM",   # flake8-commas
+    "FBT",   # flake8-boolean-trap
+    "LOG",   # flake8-logging
+    "SIM",   # flake8-simplify
+    "TRY",   # tryceratops
+    "RUF",   # Ruff-specific rules
+    "ASYNC", # flake8-async
+]
+ignore = [
+    "E501",     # Line too long
+    "SIM108",   # Use ternary operator
+    "SIM110",   # Use return all instead of for-cycle
+    "TRY300",   # Consider moving any statement to an `else` block instead of try
+    "TRY002",   # Create your own exception
+    "TRY301",   # Abstract `raise` to an inner function
+    "RUF001",    # Docstring contains ambiguous some CYRILLIC LETTER
+    "RUF002",   # Docstring contains ambiguous some CYRILLIC LETTER
+    "RUF003",    # Docstring contains ambiguous some CYRILLIC LETTER
+]
+
+[tool.ruff.lint.extend-per-file-ignores]
+# "pixi/db/sqla_mixin.py" = ["A002"]
+# "tests/**.py" = ["B017", "S101", "PT011", "FBT001"]
+# "some_dir/nested_dir/**.py" = ["FBT001", "FBT002"]
+# "deps.py" = ["RUF013"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.params.Query"]
