@@ -20,21 +20,27 @@ select = [
     "B",     # flake8-bugbear
     "C",     # flake8-comprehensions
     "E",     # pycodestyle errors
+    "G",     # flake8-logging-format
     "F",     # pyflakes
     "I",     # isort
+    "N",     # PEP8 naming
     "S",     # flake8-bandit
     "W",     # pycodestyle warnings
     "T20",   # flake8-print
     "C4",    # flake8-comprehensions
     "EM",    # flake8-errmsg
     "UP",    # pyupgrade
+    "PL",    # Pylint
     "PT",    # flake8-pytest-style
+    "ISC",   # flake8-implicit-str-concat
+    "ICN",   # flake8-import-conventions
     "ARG",   # flake8-unused-arguments
     "COM",   # flake8-commas
     "FBT",   # flake8-boolean-trap
     "LOG",   # flake8-logging
     "SIM",   # flake8-simplify
     "TRY",   # tryceratops
+    "PIE",   # flake8-pie
     "RUF",   # Ruff-specific rules
     "ASYNC", # flake8-async
 ]
@@ -45,9 +51,12 @@ ignore = [
     "TRY300",   # Consider moving any statement to an `else` block instead of try
     "TRY002",   # Create your own exception
     "TRY301",   # Abstract `raise` to an inner function
-    "RUF001",    # Docstring contains ambiguous some CYRILLIC LETTER
+    "RUF001",   # Docstring contains ambiguous some CYRILLIC LETTER
     "RUF002",   # Docstring contains ambiguous some CYRILLIC LETTER
-    "RUF003",    # Docstring contains ambiguous some CYRILLIC LETTER
+    "RUF003",   # Docstring contains ambiguous some CYRILLIC LETTER
+    "N805",     # First argument of a method should be named `self`
+    "PLR0913",  # Too many arguments in function definition
+    "PLR2004",  # Magic value used in comparison, consider replacing x with a constant variable
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
