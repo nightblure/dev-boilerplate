@@ -85,7 +85,6 @@ class BaseHttpClient:
             url = f"{self.host}/{self.api_version.lstrip('/')}/{endpoint.lstrip('/')}"
         return url
 
-    @log_if_errors()
     async def request(
         self,
         method: str,
@@ -120,8 +119,7 @@ class BaseHttpClient:
                     follow_redirects=follow_redirects,
                 )
 
-                if result.ok:
-                    return result
+                return result
 
             # We SHOULDN'T to retry client errors (4XX)
             except (ExternalServiceError, ExternalServiceTimeoutError):
@@ -173,9 +171,13 @@ class BaseHttpClient:
                         f'Client error while connecting to "{self.host}". '
                         f'Content: {response.content}; status code: {response.status_code}'
                     )
+
                     logger.error(msg)
-                    # Client error here is same as internal error
-                    raise PixiError(msg)
+
+                    if response.status_code in (401, 403):
+                        return Result(response)
+
+                    raise PixiError(response.content.decode(), response.status_code)
 
                 if response.is_server_error:
                     logger.error(
@@ -183,14 +185,10 @@ class BaseHttpClient:
                     )
                     raise ExternalServiceError(self.host)
 
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as e:
             msg = f'Timeout error while connecting to "{self.host}"'
             logger.exception(msg)
-            raise ExternalServiceTimeoutError(self.host) from httpx.TimeoutException
-
-        except Exception as e:
-            logger.exception(e)
-            raise PixiError(str(e)) from None
+            raise ExternalServiceTimeoutError(self.host) from e
 
     async def get(self, **kw):
         """See available arguments in request method"""
@@ -203,5 +201,3 @@ class BaseHttpClient:
     async def put(self, **kw):
         """See available arguments in request method"""
         return await self.request('put', **kw)
-
-
