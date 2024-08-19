@@ -1,21 +1,28 @@
 import math
+from typing import Generic, TypeVar
 
-from pydantic.version import VERSION
 from pydantic import BaseModel
+from pydantic.version import VERSION
 from sqlalchemy.orm import Query
 
+T = TypeVar('T')
 
-class PaginatedItems(BaseModel):
+
+class Page(BaseModel, Generic[T]):
     page: int
     page_size: int
     pages_count: int
     total_count: int
-    items: list[BaseModel]
+    items: list[T]
 
 
-def make_pagination(
-        q: Query, *, page: int, page_size: int, item_schema: type(BaseModel)
-) -> PaginatedItems:
+def paginate(
+    q: Query,
+    *,
+    page: int,
+    page_size: int,
+    item_schema: type(BaseModel),
+) -> Page:
     """
     q - SQLA base query. For example: db_session.query(User)..join(...).filter(...).order_by(User.id.desc())
     """
@@ -35,10 +42,10 @@ def make_pagination(
         else:
             items = [item_schema.model_validate(item) for item in db_items]
 
-    return PaginatedItems(
+    return Page(
         total_count=total_count,
         pages_count=pages_count,
         page=page,
         page_size=page_size,
-        items=items
+        items=items,
     )
