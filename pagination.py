@@ -1,8 +1,9 @@
 import math
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel
 from pydantic.version import VERSION
+from sqlalchemy import Column
 from sqlalchemy.orm import Query
 
 T = TypeVar('T')
@@ -19,14 +20,24 @@ class Page(BaseModel, Generic[T]):
 def paginate(
     q: Query,
     *,
+    order_field: Column,
     page: int,
     page_size: int,
     item_schema: type(BaseModel),
+    order: Literal['asc', 'desc'] = 'desc',
 ) -> Page:
     """
-    q - SQLA base query. For example: db_session.query(User)..join(...).filter(...).order_by(User.id.desc())
+    q - SQLA base query. For example: db_session.query(User)..join(...).filter(...)...
     """
     total_count = q.count()
+
+    if order == 'asc':
+        order_field = order_field.asc()
+
+    if order == 'desc':
+        order_field = order_field.desc()
+
+    q = q.order_by(order_field)
 
     items = []
     pages_count = 0
