@@ -3,8 +3,7 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel
 from pydantic.version import VERSION
-from sqlalchemy import Column
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import InstrumentedAttribute, Query
 
 T = TypeVar('T')
 
@@ -20,7 +19,7 @@ class Page(BaseModel, Generic[T]):
 def paginate(
     q: Query,
     *,
-    order_field: Column,
+    order_field: InstrumentedAttribute,
     page: int,
     page_size: int,
     item_schema: type(BaseModel),
