@@ -6,7 +6,14 @@ from loguru import logger
 
 
 class ExternalServiceError(Exception):
-    def __init__(self, *, log_message: str, message: str, status_code: int, host: str):
+    def __init__(
+        self,
+        *,
+        log_message: str,
+        message: str = 'Internal server error',
+        status_code: int,
+        host: str,
+    ):
         self.host = host
         self.message = message
         self.log_message = log_message
@@ -149,7 +156,6 @@ class BaseHttpClient:
         retries_timeout: int = RETRIES_TIMEOUT,
         follow_redirects=False,
         raise_for_status: bool = True,
-        retry_on_403: bool = False,
     ) -> Result:
         url = self.make_url(endpoint)
 
@@ -194,6 +200,12 @@ class BaseHttpClient:
                 await asyncio.sleep(current_retries_timeout)
                 current_backoff *= self.RETRIES_BACKOFF_FACTOR
                 continue
+            except Exception as e:
+                raise ExternalServiceError(
+                    host=self.host,
+                    status_code=500,
+                    log_message=str(e),
+                ) from e
 
         raise ExternalServiceUnknownError(self.host)
 
