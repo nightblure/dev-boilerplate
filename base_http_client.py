@@ -226,8 +226,7 @@ class BaseHttpClient:
                 if response.is_success or not raise_for_status:
                     return result
 
-                if raise_for_status:
-                    _raise_for_status(result)
+                _raise_for_status(result)
 
         except httpx.TimeoutException as e:
             msg = f'Timeout error while connecting to "{self.host}"'
