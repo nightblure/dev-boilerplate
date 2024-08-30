@@ -44,6 +44,15 @@ def sort_collection_by_conditions(sequence: list, *conditions):
     )
 
 
+def _sort_list_dicts(sequence: list, *conditions):
+    for condition in conditions:
+        sequence.sort(
+            key=lambda item: (item[condition[0]] is not None, item[condition[0]]),
+            reverse=condition[1],
+        )
+    return sequence
+
+
 def sort_objects(sequence: list, *, fields: list[str], raise_if_field_not_found: bool = False):
     """
     Sort a collection of objects. Support field names and order marker
@@ -59,8 +68,9 @@ def sort_objects(sequence: list, *, fields: list[str], raise_if_field_not_found:
     if not sequence:
         return sequence
 
-    sort_conditions = []
     all_fields = []
+    field_order_tuples = []
+    sort_conditions = []
 
     for field_name in fields:
         reverse = field_name.startswith('-')
@@ -68,17 +78,24 @@ def sort_objects(sequence: list, *, fields: list[str], raise_if_field_not_found:
         if reverse:
             field_name = field_name[1:]
 
-        is_field_found = hasattr(sequence[0], field_name)
+        if isinstance(sequence[0], dict):
+            is_field_found = field_name in sequence[0]
+        else:
+            is_field_found = hasattr(sequence[0], field_name)
 
         if is_field_found:
             attribute = operator.attrgetter(field_name)
             sort_conditions.append((attribute, reverse))
             all_fields.append(field_name)
+            field_order_tuples.append((field_name, reverse))
         elif raise_if_field_not_found:
             sequence_elements_type = type(sequence[0])
             raise Exception(
                 f'Field {field_name!r} not found for collection with elements of type {sequence_elements_type!r}'
             )
+
+    if isinstance(sequence[0], dict):
+        return _sort_list_dicts(sequence, *field_order_tuples)
 
     sequence_without_none_field_values, sequence_with_none_field_values = (
         _split_sequence(sequence, fields=all_fields)
