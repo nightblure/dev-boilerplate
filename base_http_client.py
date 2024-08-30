@@ -6,69 +6,64 @@ from loguru import logger
 
 
 class ExternalServiceError(Exception):
+    status_code = 500
+    _message = 'Internal server error'
+
     def __init__(
         self,
-        *,
-        log_message: str,
-        message: str = 'Internal server error',
-        status_code: int,
         host: str,
+        *,
+        message: str | None = None,
+        status_code: int | None = None,
     ):
+        if message is not None:
+            self._message = message
+
+        super().__init__(host)
+
+        if status_code is None:
+            status_code = self.status_code
+
         self.host = host
-        self.message = message
-        self.log_message = log_message
         self.status_code = status_code
+
+    @property
+    def log_message(self) -> str:
+        return (
+            f'Error while connecting to {self.host!r}.\n'
+            f'Reason: {self.message}.\n'
+            f'Status code: {self.status_code}'
+        )
+
+    @property
+    def message(self) -> str:
+        return self._message
+
+    def __repr__(self):
+        return (
+            f'{self.__class__.__name__}('
+            f'host={self.host!r}, '
+            f'message={self.message!r}',
+            f'log_message={self.log_message!r}',
+            ')',
+        )
 
     def __str__(self):
         return self.message
 
 
-class ExternalServiceInternalError(ExternalServiceError):
-    def __init__(self, *, host: str, status_code: int = 500):
-        log_message = f'External service {host!r} unavailable. Reason: {status_code}'
-        super().__init__(
-            message=f'External service {host!r} unavailable',
-            status_code=status_code,
-            host=host,
-            log_message=log_message,
-        )
-
-
 class ExternalServiceTimeoutError(ExternalServiceError):
-    def __init__(self, host: str):
-        message = f'Timeout error while connecting to host {host!r}'
-        super().__init__(
-            log_message=message,
-            message=message,
-            status_code=504,
-            host=host,
-        )
+    status_code = 504
 
-
-class ExternalServiceClientError(ExternalServiceError):
-    def __init__(self, *, status_code: int = 400, host: str, content):
-        log_message = (
-            f'Client error while connecting to {host!r}.\n'
-            f'Content: {content}.\n'
-            f'Status code: {status_code}'
-        )
-        super().__init__(
-            log_message=log_message,
-            message=f'Client error while connecting to {host!r}',
-            status_code=status_code,
-            host=host,
-        )
+    @property
+    def message(self) -> str:
+        return f'Timeout error while connecting to host {self.host!r}'
 
 
 class ExternalServiceUnknownError(ExternalServiceError):
-    def __init__(self, host: str):
-        message = f'Unknown error while connecting to host {host!r}'
-        super().__init__(
-            message=message,
-            log_message=message,
-            status_code=500,
-            host=host,
-        )
+    @property
+    def message(self) -> str:
+        return f'Unknown error while connecting to host {self.host!r}'
 
 
 class Result:
@@ -83,28 +78,22 @@ class Result:
             self.content: dict[str, Any] = {'text': response.text}
             self.is_json = False
 
+        self.text = response.text
         self.ok = 200 <= response.status_code < 300
         self.client_error = 400 <= response.status_code <= 499
         self.server_error = 500 <= response.status_code <= 599
         self.host = f'{response.url.scheme}://{response.url.host}'
 
     def __repr__(self):
-        return f'Result(status_code={self.status_code})'
+        return f'Result(status_code={self.status_code}, host={self.host!r})'
 
 
 def _raise_for_status(result: Result):
-    if result.client_error:
-        raise ExternalServiceClientError(
-            status_code=result.status_code,
-            host=result.host,
-            content=result.content,
-        )
-
-    if result.server_error:
-        raise ExternalServiceInternalError(
-            host=result.host,
-            status_code=result.status_code,
-        )
+    raise ExternalServiceError(
+        host=result.host,
+        message=result.text,
+        status_code=result.status_code,
+    )
 
 
 class BaseHttpClient:
@@ -201,13 +190,9 @@ class BaseHttpClient:
                 current_backoff *= self.RETRIES_BACKOFF_FACTOR
                 continue
             except Exception as e:
-                raise ExternalServiceError(
-                    host=self.host,
-                    status_code=500,
-                    log_message=str(e),
-                ) from e
+                raise ExternalServiceError(host=self.host, message=str(e)) from e
 
-        raise ExternalServiceUnknownError(self.host)
+        raise ExternalServiceUnknownError(host=self.host)
 
     async def __send_request(
         self,
@@ -241,9 +226,7 @@ class BaseHttpClient:
                 _raise_for_status(result)
 
         except httpx.TimeoutException as e:
-            msg = f'Timeout error while connecting to "{self.host}"'
-            logger.exception(msg)
-            raise ExternalServiceTimeoutError(self.host) from e
+            raise ExternalServiceTimeoutError(host=self.host) from e
 
     async def get(self, **kw) -> Result:
         """See available arguments in request method"""
