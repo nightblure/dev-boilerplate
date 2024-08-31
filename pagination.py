@@ -1,11 +1,18 @@
 import math
-from typing import Generic, Literal, TypeVar
+from enum import Enum
+from typing import Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic.version import VERSION
+from sqlalchemy import UnaryExpression
 from sqlalchemy.orm import InstrumentedAttribute, Query
 
 T = TypeVar('T')
+
+
+class PaginationMethod(str, Enum):
+    LimitOffset = 'LimitOffset'
+    Default = 'Default'
 
 
 class Page(BaseModel, Generic[T]):
@@ -13,31 +20,69 @@ class Page(BaseModel, Generic[T]):
     page_size: int
     pages_count: int
     total_count: int
+    items_count: int = 0
     items: list[T]
+
+    @model_validator(mode='after')
+    def model_validator(self):
+        self.items_count = len(self.items)
+        return self
+
+
+class LimitOffsetPage(BaseModel, Generic[T]):
+    limit: int
+    offset: int
+    total_count: int
+    items_count: int = 0
+    items: list[T]
+
+    @model_validator(mode='after')
+    def model_validator(self):
+        self.items_count = len(self.items)
+        return self
+
+
+def paginate_by_limit_offset(
+    q: Query,
+    *,
+    limit: int,
+    offset: int,
+    item_schema: type(BaseModel),
+    sqla_order_fields: list[InstrumentedAttribute | UnaryExpression],
+) -> LimitOffsetPage:
+    """
+    q - SQLA base query. For example: db_session.query(User)..join(...).filter(...)...
+    """
+    total_count = q.count()
+    q = q.order_by(*sqla_order_fields)
+    db_items = q.limit(limit).offset(offset).all()
+
+    if VERSION.startswith('1.'):
+        items = [item_schema.from_orm(item) for item in db_items]
+    else:
+        items = [item_schema.model_validate(item) for item in db_items]
+
+    return LimitOffsetPage(
+        total_count=total_count,
+        offset=offset,
+        limit=limit,
+        items=items,
+    )
 
 
 def paginate(
     q: Query,
     *,
-    order_field: InstrumentedAttribute,
     page: int,
     page_size: int,
     item_schema: type(BaseModel),
-    order: Literal['asc', 'desc'] = 'desc',
+    sqla_order_fields: list[InstrumentedAttribute | UnaryExpression],
 ) -> Page:
     """
     q - SQLA base query. For example: db_session.query(User)..join(...).filter(...)...
     """
     total_count = q.count()
-
-    if order == 'asc':
-        order_field = order_field.asc()
-
-    if order == 'desc':
-        order_field = order_field.desc()
-
-    q = q.order_by(order_field)
-
+    q = q.order_by(*sqla_order_fields)
     items = []
     pages_count = 0
 
