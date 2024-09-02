@@ -1,5 +1,6 @@
 import asyncio
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from loguru import logger
@@ -145,15 +146,20 @@ class BaseHttpClient:
         retries_timeout: int = RETRIES_TIMEOUT,
         follow_redirects=False,
         raise_for_status: bool = True,
+        request_id: str | None = None,
     ) -> Result:
-        url = self.make_url(endpoint)
-
         if headers is None:
             headers = {}
 
-        headers = {**self._default_request_headers, **headers}
-        current_retries_timeout = retries_timeout
+        if request_id is None:
+            request_id = uuid4().hex
+
+        headers['X-Request-ID'] = request_id
+        headers.update(self._default_request_headers)
+
         current_backoff = 1
+        url = self.make_url(endpoint)
+        current_retries_timeout = retries_timeout
 
         for i in range(retries):
             try:
