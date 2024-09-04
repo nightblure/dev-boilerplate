@@ -1,8 +1,6 @@
 from sqlalchemy.orm import sessionmaker, Session
 
-from db.types import SQLADbSession
-from db.some_dao import SomeDAO
-from db.session_manager import DbSessionManager
+from .session_manager import DbSessionManager
 
 
 class UnitOfWork:
@@ -12,7 +10,7 @@ class UnitOfWork:
 
     def __enter(self):
         session = self.db_session_manager.session_factory()
-        self.some_dao = SomeDAO(session)
+        # self.some_dao = SomeDAO(session)
         # another dao/repository...
         self._db_session = session
 

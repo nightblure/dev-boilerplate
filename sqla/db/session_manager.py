@@ -1,8 +1,9 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
+from loguru import logger
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session, Session
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 
 class DbSessionManager:
@@ -17,14 +18,14 @@ class DbSessionManager:
         return cls._instance
 
     def __init__(
-            self,
-            *,
-            db_url: str,
-            echo: bool = False,
-            scoped: bool = False,
-            pool_size: int = 20,
-            max_overflow: int = 0,
-            pool_pre_ping: bool = False
+        self,
+        *,
+        db_url: str,
+        echo: bool = False,
+        scoped: bool = False,
+        pool_size: int = 20,
+        max_overflow: int = 0,
+        pool_pre_ping: bool = False,
     ):
         self.db_url = db_url
         self.echo = echo
@@ -38,13 +39,9 @@ class DbSessionManager:
             echo=self.echo,
             pool_size=self.pool_size,
             max_overflow=self.max_overflow,
-            pool_pre_ping=self.pool_pre_ping
+            pool_pre_ping=self.pool_pre_ping,
         )
-        maker_args = dict(
-            autocommit=False,
-            autoflush=False,
-            bind=self.engine
-        )
+        maker_args = {'autocommit': False, 'autoflush': False, 'bind': self.engine}
 
         self.session_factory: sessionmaker | Session = sessionmaker(**maker_args)
 
@@ -63,9 +60,8 @@ class DbSessionManager:
             yield db_session
         except Exception as e:
             db_session.rollback()
-            logger.error(str(e))
             logger.warning('rollback db session')
-            raise e
+            raise
         finally:
             # logger.warning('close session')
             db_session.close()

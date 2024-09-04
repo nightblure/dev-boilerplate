@@ -7,6 +7,8 @@ from pydantic.version import VERSION
 from sqlalchemy import UnaryExpression
 from sqlalchemy.orm import InstrumentedAttribute, Query
 
+from .params import PaginationParams
+
 T = TypeVar('T')
 
 
@@ -104,3 +106,31 @@ def paginate(
         page_size=page_size,
         items=items,
     )
+
+
+def paginate_by_method(
+    query: Query,
+    *,
+    method: PaginationMethod,
+    pydantic_model_class: type[BaseModel],
+    pagination_params: PaginationParams,
+    order_fields,
+) -> Page[T] | LimitOffsetPage[T]:
+    if method == PaginationMethod.LimitOffset:
+        page = paginate_by_limit_offset(
+            query,
+            limit=pagination_params.limit,
+            offset=pagination_params.offset,
+            sqla_order_fields=order_fields,
+            item_schema=pydantic_model_class,
+        )
+    else:
+        page = paginate(
+            query,
+            page=pagination_params.page,
+            sqla_order_fields=order_fields,
+            item_schema=pydantic_model_class,
+            page_size=pagination_params.page_size,
+        )
+
+    return page
