@@ -15,7 +15,7 @@ test:
 
 lint:
 	pre-commit install
-	pre-commit run --all-files # --show-diff-on-failure
+	pre-commit run --all-files
 
 patch:
 	bump2version patch
