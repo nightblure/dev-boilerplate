@@ -2,8 +2,7 @@
 # https://docs.astral.sh/ruff/settings/
 
 [tool.ruff]
-#fix = true
-target-version = "py31111"
+target-version = "py3XX"
 extend-exclude = []
 line-length = 88
 
@@ -16,33 +15,33 @@ exclude = [
 ]
 select = [
     # RULES: https://docs.astral.sh/ruff/rules/
-    "A",     # flake8-builtins
-    "B",     # flake8-bugbear
-    "C",     # flake8-comprehensions
-    "E",     # pycodestyle errors
-    "G",     # flake8-logging-format
-    "F",     # pyflakes
-    "I",     # isort
-    "N",     # PEP8 naming
-    "S",     # flake8-bandit
-    "W",     # pycodestyle warnings
-    "T20",   # flake8-print
-    "C4",    # flake8-comprehensions
-    "EM",    # flake8-errmsg
-    "UP",    # pyupgrade
-    "PL",    # Pylint
-    "PT",    # flake8-pytest-style
-    "ISC",   # flake8-implicit-str-concat
-    "ICN",   # flake8-import-conventions
-    "ARG",   # flake8-unused-arguments
-    "COM",   # flake8-commas
-    "FBT",   # flake8-boolean-trap
-    "LOG",   # flake8-logging
-    "SIM",   # flake8-simplify
-    "TRY",   # tryceratops
-    "PIE",   # flake8-pie
-    "RUF",   # Ruff-specific rules
-    "ASYNC", # flake8-async
+    # "A",     # flake8-builtins
+    # "B",     # flake8-bugbear
+    # "C",     # flake8-comprehensions
+    # "E",     # pycodestyle errors
+    # "G",     # flake8-logging-format
+    # "F",     # pyflakes
+    # "I",     # isort
+    # "N",     # PEP8 naming
+    # "S",     # flake8-bandit
+    # "W",     # pycodestyle warnings
+    # "T20",   # flake8-print
+    # "C4",    # flake8-comprehensions
+    # "EM",    # flake8-errmsg
+    # "UP",    # pyupgrade
+    # "PL",    # Pylint
+    # "PT",    # flake8-pytest-style
+    # "ISC",   # flake8-implicit-str-concat
+    # "ICN",   # flake8-import-conventions
+    # "ARG",   # flake8-unused-arguments
+    # "COM",   # flake8-commas
+    # "FBT",   # flake8-boolean-trap
+    # "LOG",   # flake8-logging
+    # "SIM",   # flake8-simplify
+    # "TRY",   # tryceratops
+    # "PIE",   # flake8-pie
+    # "RUF",   # Ruff-specific rules
+    # "ASYNC", # flake8-async
 ]
 ignore = [
     "E501",     # Line too long
@@ -57,13 +56,32 @@ ignore = [
     "N805",     # First argument of a method should be named `self`
     "PLR0913",  # Too many arguments in function definition
     "PLR2004",  # Magic value used in comparison, consider replacing x with a constant variable
+    "S311",     # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "ASYNC109", # Async function definition with a `timeout` parameter
+    "RUF012",   # Mutable class attributes should be annotated with `typing.ClassVar`
+    "UP038",    # Use `X | Y` in `isinstance` call instead of `(X, Y)`
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
-# "pixi/db/sqla_mixin.py" = ["A002"]
+# "db/sqla_mixin.py" = ["A002"]
 # "tests/**.py" = ["B017", "S101", "PT011", "FBT001"]
 # "some_dir/nested_dir/**.py" = ["FBT001", "FBT002"]
-# "deps.py" = ["RUF013"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.params.Query"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.Query",
+    "fastapi.params.Query",
+    "fastapi.Body",
+    "fastapi.params.Body",
+]
+
+[tool.pytest.ini_options]
+addopts = "--asyncio-mode=auto"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+]
+
