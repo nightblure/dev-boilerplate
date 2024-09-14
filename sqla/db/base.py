@@ -1,10 +1,24 @@
 from sqlalchemy.orm import declarative_base, InstrumentedAttribute
+from sqlalchemy.orm.collections import InstrumentedList
+
+from .ids import get_uuid4_str
 
 Base = declarative_base()
 
 
 class SQLABase(Base):
     __abstract__ = True
+    _default_id_factory = get_uuid4_str
+
+    def set_id(self, value=None, *, id_field: str = 'id') -> None:
+        if getattr(self, id_field) is not None:
+            return None
+
+        if value is None:
+            value = self.__class__._default_id_factory()
+
+        setattr(self, id_field, value)
+        return None
 
     @classmethod
     def get_fields(cls) -> list:
@@ -23,32 +37,20 @@ class SQLABase(Base):
     def get_field(cls, name: str):
         return cls.field_name_to_orm_field()[name]
 
-    def to_dict(self, *, exclude_none: bool = False, with_relations: bool = False):
-        data: dict = self.__dict__
+    def to_dict(self, *, exclude_none: bool = False):
+        exclude_keys = ['_sa_instance_state']
+        data: dict = {
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in exclude_keys and not isinstance(v, (InstrumentedList, SQLABase))
+        }
+        fields = self.get_field_names()
 
-        if '_sa_instance_state' in data:
-            data.pop('_sa_instance_state')
-
-        for field in self.get_field_names():
-            if field not in data:
-                data[field] = None
+        for db_field in fields:
+            if db_field not in data:
+                data[db_field] = None
 
         if exclude_none:
             data = {k: v for k, v in data.items() if v is not None}
-
-        if not with_relations:
-            return data
-
-        for field, value in data.items():
-            if isinstance(value, SQLABase):
-                data[field] = value.to_dict(
-                    exclude_none=exclude_none, with_relations=with_relations
-                )
-
-            if isinstance(value, list) and isinstance(value[0], SQLABase):
-                data[field] = [
-                    v.to_dict(exclude_none=exclude_none, with_relations=with_relations)
-                    for v in value
-                ]
 
         return data
