@@ -7,38 +7,41 @@ from loguru import logger
 
 
 class ExternalServiceError(Exception):
-    status_code = 500
-    _message = 'Internal server error'
+    status_code = 502
+    exception_info: str | None = None
+    message = 'Bad Gateway'
+    content = message
 
     def __init__(
         self,
-        host: str,
         *,
-        message: str | None = None,
+        host: str,
         status_code: int | None = None,
+        content: dict | str | None = None,
+        exception_info: str | None = None,
     ):
-        if message is not None:
-            self._message = message
-
-        super().__init__(host)
-
-        if status_code is None:
-            status_code = self.status_code
-
         self.host = host
-        self.status_code = status_code
+
+        if exception_info is not None:
+            self.exception_info = exception_info
+
+        if content is not None:
+            self.content = content
+
+        if status_code is not None:
+            self.status_code = status_code
 
     @property
     def log_message(self) -> str:
-        return (
-            f'Error while connecting to {self.host!r}.\n'
-            f'Reason: {self.message}.\n'
-            f'Status code: {self.status_code}'
+        msg = (
+            f'Error while connecting to {self.host!r}: {self.message}\n'
+            f'Status code: {self.status_code}.\n'
         )
 
-    @property
-    def message(self) -> str:
-        return self._message
+        if self.exception_info is not None:
+            msg = f'{msg}Exception information: {self.exception_info}'
+
+        return msg
 
     def __repr__(self):
         return (
@@ -55,6 +58,7 @@ class ExternalServiceError(Exception):
 
 class ExternalServiceTimeoutError(ExternalServiceError):
     status_code = 504
+    content = 'Bad Gateway'
 
     @property
     def message(self) -> str:
@@ -92,7 +96,8 @@ class Result:
 def _raise_for_status(result: Result):
     raise ExternalServiceError(
         host=result.host,
-        message=result.text,
+        content=result.content,
+        exception_info=result.text,
         status_code=result.status_code,
     )
 
@@ -106,19 +111,15 @@ class BaseHttpClient:
         self,
         *,
         host: str,
-        api_version: str = '',
         app_name: str,
         user: str | None = None,
         password: str | None = None,
-        auth_endpoint: str | None = None,
     ):
-        self.host = host.rstrip('/')
-        self.api_version = api_version.lstrip('/')
         self.app_name = app_name
+        self.host = host.rstrip('/')
 
         self.user = user
         self.password = password
-        self.auth_endpoint = auth_endpoint
 
         self._default_request_headers = {
             'User-Agent': app_name,
@@ -127,10 +128,7 @@ class BaseHttpClient:
         }
 
     def make_url(self, endpoint: str):
-        if self.api_version == '':
-            url = f"{self.host}/{endpoint.lstrip('/')}"
-        else:
-            url = f"{self.host}/{self.api_version.lstrip('/')}/{endpoint.lstrip('/')}"
+        url = f"{self.host}/{endpoint.lstrip('/')}"
         return url
 
     async def request(
@@ -176,6 +174,9 @@ class BaseHttpClient:
 
                 return result
 
+            except ExternalServiceTimeoutError:
+                raise
+
             except ExternalServiceError as e:
                 # We SHOULDN'T to retry client errors (4XX)
                 if 400 <= e.status_code < 500:
@@ -196,7 +197,7 @@ class BaseHttpClient:
                 current_backoff *= self.RETRIES_BACKOFF_FACTOR
                 continue
             except Exception as e:
-                raise ExternalServiceError(host=self.host, message=str(e)) from e
+                raise ExternalServiceError(host=self.host, exception_info=str(e)) from e
 
         raise ExternalServiceUnknownError(host=self.host)
 
