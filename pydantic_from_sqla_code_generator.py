@@ -86,7 +86,10 @@ class CodeGenerator:
                 at_least_one_nullable = True
 
             if sqla_field.server_default is not None:
-                default = sqla_field.server_default.arg.text
+                try:
+                    default = sqla_field.server_default.arg.text
+                except AttributeError:
+                    default = sqla_field.server_default.arg
 
             pyd_field = PydanticField(
                 default=default,
@@ -144,7 +147,7 @@ class CodeGenerator:
 
 def main():
     codegen = CodeGenerator(pydantic_version='v2', old_typing=0)
-    codegen.run(sqla_class=sqla_classes.Class)
+    codegen.run(sqla_class=sqla_classes.MarkupProducts)
 
 
 if __name__ == '__main__':
