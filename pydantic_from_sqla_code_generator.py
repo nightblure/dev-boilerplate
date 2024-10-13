@@ -5,7 +5,6 @@ from datetime import datetime
 # import ... as sqla_classes
 from sqlalchemy import Column
 
-
 class PydanticFieldTemplates:
     default_list_part = 'Field(default_factory=list)'
 
@@ -13,27 +12,35 @@ class PydanticFieldTemplates:
 @dataclass
 class PydanticField:
     name: str
-    type_: str
+    type_: type
     nullable: bool
     default: str | None = None
 
     def get_string_representation(self, *, old_typing: bool) -> str:
         template: str = '{field_name}: {field_type_hint}'
-        type_ = self.type_
+        field_type_hint = str(self.type_.__name__)
 
         if self.nullable:
-            type_ += ' | None'
+            field_type_hint = f'{field_type_hint} | None'
 
             if old_typing:
-                type_ = f'Optional[{self.type_}]'
+                field_type_hint = f'Optional[{field_type_hint}]'
 
         representation = template.format(
             field_name=self.name,
-            field_type_hint=type_
+            field_type_hint=field_type_hint
         )
 
         if self.default is not None:
-            representation += f' = {self.default}'
+            default_value = self.default
+
+            if self.type_ is str:
+                default_value = f"'{default_value}'"
+
+            representation = f'{representation} = {default_value}'
+
+        if self.default is None and self.nullable:
+            representation = f'{representation} = None'
 
         return representation
 
@@ -73,18 +80,19 @@ class CodeGenerator:
             if type_ in additional_import_types:
                 types_for_import.add(type_)
 
-            pydantic_field_type_ = str(type_.__name__)
-            default = None
+            default: str | None = sqla_field.default
 
             if nullable:
-                default = 'None'
                 at_least_one_nullable = True
+
+            if sqla_field.server_default is not None:
+                default = sqla_field.server_default.arg.text
 
             pyd_field = PydanticField(
                 default=default,
                 nullable=nullable,
                 name=pydantic_field_name,
-                type_=pydantic_field_type_,
+                type_=type_,
             )
 
             pyd_fields.append(pyd_field)
@@ -95,7 +103,7 @@ class CodeGenerator:
         if self.old_typing and at_least_one_nullable:
             import_lines.append('from typing import Optional\n')
 
-        # enter between python and other imports
+        # space between python imports and other
         import_lines.append('\n')
 
         if self.pydantic_version == 'v2':
@@ -135,7 +143,7 @@ class CodeGenerator:
 
 
 def main():
-    codegen = CodeGenerator(pydantic_version='v1', old_typing=0)
+    codegen = CodeGenerator(pydantic_version='v2', old_typing=0)
     codegen.run(sqla_class=sqla_classes.Class)
 
 
