@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-import sqla_to_pydantic_code_generator.target_sqla_classes as sqla_classes
+# you need to import here your sqla classes!
+# import ... as sqla_classes
 from sqlalchemy import Column
 
 
